@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Scanner - JavaScript</title>
+    <title>Advanced Barcode & QR Scanner</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f5f5;
             margin: 0;
             padding: 20px;
+            background-color: #f5f5f5;
             color: #333;
         }
 
@@ -18,14 +18,20 @@
             max-width: 800px;
             margin: 0 auto;
             background-color: white;
-            padding: 30px;
+            padding: 25px;
             border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
-        h2 {
+        h1 {
             text-align: center;
             color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
             margin-bottom: 30px;
         }
 
@@ -33,38 +39,33 @@
             width: 100%;
             max-width: 600px;
             height: 400px;
-            margin: 20px auto;
-            border: 3px dashed #ccc;
+            margin: 0 auto;
+            border: 3px solid #ddd;
             border-radius: 8px;
             position: relative;
             overflow: hidden;
             background-color: #f9f9f9;
         }
 
-        #scanner-container.active {
-            border-color: #4CAF50;
-        }
-
         #result {
-            text-align: center;
-            margin: 25px 0;
+            margin: 20px 0;
             padding: 15px;
-            font-size: 22px;
-            font-weight: bold;
             background-color: #f0f8ff;
             border-radius: 5px;
-            min-height: 30px;
+            min-height: 50px;
         }
 
         #barcode-result {
+            font-weight: bold;
             color: #e74c3c;
+            word-break: break-all;
         }
 
         .button-group {
             display: flex;
             justify-content: center;
             gap: 15px;
-            margin-top: 20px;
+            margin: 20px 0;
         }
 
         button {
@@ -73,60 +74,61 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
             font-weight: 600;
         }
 
         #start-btn {
-            background-color: #4CAF50;
+            background-color: #2ecc71;
             color: white;
         }
 
         #start-btn:hover {
-            background-color: #45a049;
+            background-color: #27ae60;
             transform: translateY(-2px);
         }
 
         #stop-btn {
-            background-color: #f44336;
+            background-color: #e74c3c;
             color: white;
         }
 
         #stop-btn:hover {
-            background-color: #d32f2f;
+            background-color: #c0392b;
             transform: translateY(-2px);
         }
 
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 18px;
-            color: #555;
+        #switch-btn {
+            background-color: #3498db;
+            color: white;
         }
 
-        .debug-info {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            font-family: monospace;
-            max-height: 150px;
-            overflow-y: auto;
+        #switch-btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+
+        .format-info {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
         }
 
         @media (max-width: 600px) {
-            .container {
-                padding: 15px;
-            }
-
             #scanner-container {
                 height: 300px;
             }
 
             button {
                 padding: 10px 20px;
+                font-size: 14px;
             }
         }
     </style>
@@ -134,174 +136,189 @@
 
 <body>
     <div class="container">
-        <h2>Barcode Scannersadas</h2>
+        <h1>Barcode & QR Scanner</h1>
+        <p class="subtitle">Based on HTML5 and JavaScript</p>
+
         <div id="scanner-container">
-            <div class="loading">Scanner belum aktif</div>
+            <div class="status" id="status-message">Scanner belum diaktifkan</div>
         </div>
-        <div id="result">Hasil: <span id="barcode-result">-</span></div>
+
+        <div id="result">
+            <strong>Hasil Scan:</strong><br>
+            <span id="barcode-result">-</span>
+            <div class="format-info" id="format-info"></div>
+        </div>
+
         <div class="button-group">
             <button id="start-btn" onclick="startScanner()">Mulai Scan</button>
             <button id="stop-btn" onclick="stopScanner()">Berhenti</button>
+            <button id="switch-btn" onclick="switchCamera()">Ganti Kamera</button>
         </div>
-        <div class="debug-info" id="debug-console">
-            <strong>Debug Console:</strong><br>
-            <div id="debug-messages"></div>
+
+        <div class="status">
+            Format yang didukung: QR Code, UPC-A, UPC-E, EAN-8, EAN-13, Code-39, Code-93, Code-128, ITF, Codabar
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <!-- Menggunakan library dari CDN seperti di artikel Minhaz Av -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.4/html5-qrcode.min.js"></script>
     <script>
+        let html5QrcodeScanner;
+        let currentCameraId = null;
         let isScanning = false;
 
-        // Fungsi untuk menambahkan pesan debug
-        function debugLog(message) {
-            const debugDiv = document.getElementById('debug-messages');
-            debugDiv.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
-            debugDiv.scrollTop = debugDiv.scrollHeight; // Auto-scroll ke bawah
-            console.log(message);
+        function updateStatus(message) {
+            document.getElementById('status-message').textContent = message;
         }
 
         function startScanner() {
             if (isScanning) {
-                debugLog("Scanner sudah berjalan");
+                updateStatus("Scanner sudah berjalan");
                 return;
             }
 
-            const scannerContainer = document.querySelector('#scanner-container');
-            scannerContainer.classList.add('active');
-            scannerContainer.querySelector('.loading').textContent = 'Memuat scanner...';
-            debugLog("Memulai inisialisasi scanner...");
+            updateStatus("Menyiapkan scanner...");
 
-            Quagga.init({
-                inputStream: {
-                    type: "LiveStream",
-                    constraints: {
-                        width: 600,
-                        height: 400,
-                        facingMode: "environment",
-                        aspectRatio: { min: 1, max: 2 }
-                    },
-                    target: scannerContainer,
-                    willReadFrequently: true
-                },
-                decoder: {
-                    readers: [
-                        "code_128_reader",
-                        "ean_reader",
-                        "ean_8_reader",
-                        "upc_reader",
-                        "code_39_reader",
-                        "code_39_vin_reader",
-                        "codabar_reader",
-                        "i2of5_reader"
-                    ],
-                    debug: {
-                        drawBoundingBox: true,
-                        showFrequency: true,
-                        drawScanline: true,
-                        showPattern: true
+            // Konfigurasi scanner
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                rememberLastUsedCamera: true,
+                supportedScanTypes: [
+                    Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+                    Html5QrcodeScanType.SCAN_TYPE_FILE
+                ],
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                    Html5QrcodeSupportedFormats.CODE_93,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.ITF,
+                    Html5QrcodeSupportedFormats.CODABAR,
+                    Html5QrcodeSupportedFormats.QR_CODE
+                ]
+            };
+
+            html5QrcodeScanner = new Html5Qrcode("scanner-container");
+
+            // Dapatkan daftar kamera yang tersedia
+            Html5Qrcode.getCameras()
+                .then(devices => {
+                    if (devices && devices.length) {
+                        // Jika ada kamera yang sebelumnya digunakan, gunakan itu
+                        const cameraId = currentCameraId || devices[0].id;
+                        return startCamera(cameraId, config);
+                    } else {
+                        throw "Tidak ditemukan perangkat kamera";
                     }
-                },
-                locate: true,
-                numOfWorkers: 4,
-                frequency: 10,
-                debug: true
-            }, function (err) {
-                if (err) {
-                    debugLog("Error inisialisasi: " + (err.message || err));
-                    alert("Error: " + (err.message || "Gagal memulai scanner. Pastikan kamera tersedia dan diizinkan."));
-                    scannerContainer.querySelector('.loading').textContent = 'Error memuat scanner';
-                    scannerContainer.classList.remove('active');
-                    return;
-                }
+                })
+                .catch(err => {
+                    updateStatus(`Error: ${err}`);
+                    console.error(err);
+                });
+        }
 
-                debugLog("Scanner berhasil diinisialisasi");
-                scannerContainer.querySelector('.loading').style.display = 'none';
-                Quagga.start();
+        function startCamera(cameraId, config) {
+            return html5QrcodeScanner.start(
+                cameraId,
+                config,
+                onScanSuccess,
+                onScanError
+            ).then(() => {
+                currentCameraId = cameraId;
                 isScanning = true;
-
-                // Tambahkan overlay untuk membantu fokus
-                const canvas = Quagga.canvas.dom.overlay;
-                canvas.style.border = '5px solid rgba(0, 255, 0, 0.5)';
-                canvas.style.boxSizing = 'border-box';
-
-                debugLog("Scanner mulai berjalan...");
+                updateStatus("Scanner aktif - Arahkan kamera ke barcode/QR");
+            }).catch(err => {
+                updateStatus(`Gagal memulai kamera: ${err}`);
+                console.error(err);
             });
+        }
 
-            Quagga.onProcessed(function (result) {
-                const drawingCtx = Quagga.canvas.ctx.overlay;
-                const drawingCanvas = Quagga.canvas.dom.overlay;
+        function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById('barcode-result').textContent = decodedText;
+            document.getElementById('format-info').textContent = `Format: ${decodedResult.result.format.formatName}`;
 
-                if (result) {
-                    if (result.boxes) {
-                        drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
-                        result.boxes.filter(function (box) {
-                            return box !== result.box;
-                        }).forEach(function (box) {
-                            Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
-                        });
-                    }
+            // Feedback visual
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.backgroundColor = '#e8f5e9';
+            setTimeout(() => {
+                resultDiv.style.backgroundColor = '#f0f8ff';
+            }, 500);
 
-                    if (result.box) {
-                        Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "blue", lineWidth: 2 });
-                    }
+            // Opsional: berhenti otomatis setelah scan
+            // stopScanner();
+        }
 
-                    if (result.codeResult && result.codeResult.code) {
-                        Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
-                    }
-                }
-            });
-
-            Quagga.onDetected(function (result) {
-                if (!result.codeResult) {
-                    debugLog("Ditemukan sesuatu tapi bukan barcode valid");
-                    return;
-                }
-
-                const code = result.codeResult.code;
-                debugLog(`Barcode terdeteksi: ${code} (format: ${result.codeResult.format})`);
-
-                document.getElementById("barcode-result").textContent = code;
-
-                // Feedback visual
-                const resultElement = document.getElementById("result");
-                resultElement.style.backgroundColor = "#e8f5e9";
-                setTimeout(() => {
-                    resultElement.style.backgroundColor = "#f0f8ff";
-                }, 1000);
-
-                // Opsional: berhenti otomatis setelah scan
-                // stopScanner();
-            });
+        function onScanError(errorMessage) {
+            // Error handling bisa diabaikan karena akan terus mencoba scan
+            console.log(`Scan error: ${errorMessage}`);
         }
 
         function stopScanner() {
+            if (!isScanning) return;
+
+            html5QrcodeScanner.stop()
+                .then(() => {
+                    isScanning = false;
+                    updateStatus("Scanner dihentikan");
+                    document.getElementById('barcode-result').textContent = '-';
+                    document.getElementById('format-info').textContent = '';
+                })
+                .catch(err => {
+                    updateStatus(`Error menghentikan scanner: ${err}`);
+                    console.error(err);
+                });
+        }
+
+        function switchCamera() {
             if (!isScanning) {
-                debugLog("Scanner tidak aktif");
+                updateStatus("Aktifkan scanner terlebih dahulu");
                 return;
             }
 
-            Quagga.stop();
-            isScanning = false;
-            const scannerContainer = document.querySelector('#scanner-container');
-            scannerContainer.classList.remove('active');
-            const loadingElement = scannerContainer.querySelector('.loading');
-            loadingElement.style.display = 'block';
-            loadingElement.textContent = 'Scanner dihentikan';
-            document.getElementById("barcode-result").textContent = "-";
-            debugLog("Scanner dihentikan");
+            Html5Qrcode.getCameras()
+                .then(devices => {
+                    if (devices.length < 2) {
+                        updateStatus("Hanya ditemukan 1 kamera");
+                        return;
+                    }
+
+                    const currentIndex = devices.findIndex(device => device.id === currentCameraId);
+                    const nextIndex = (currentIndex + 1) % devices.length;
+                    const nextCameraId = devices[nextIndex].id;
+
+                    stopScanner();
+                    startScannerWithCamera(nextCameraId);
+                })
+                .catch(err => {
+                    updateStatus(`Error: ${err}`);
+                    console.error(err);
+                });
         }
 
-        // Handle ketika halaman ditutup
-        window.addEventListener('beforeunload', function () {
+        function startScannerWithCamera(cameraId) {
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    // ... format lainnya sama seperti di startScanner()
+                ]
+            };
+
+            startCamera(cameraId, config);
+        }
+
+        // Cleanup saat halaman ditutup
+        window.addEventListener('beforeunload', () => {
             if (isScanning) {
-                Quagga.stop();
-                debugLog("Scanner dihentikan karena halaman ditutup");
+                stopScanner();
             }
         });
-
-        // Debug: tampilkan versi Quagga
-        debugLog(`Menggunakan QuaggaJS v${Quagga.version}`);
     </script>
 </body>
 
