@@ -106,6 +106,16 @@
             color: #555;
         }
 
+        .debug-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            font-family: monospace;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
         @media (max-width: 600px) {
             .container {
                 padding: 15px;
@@ -124,7 +134,7 @@
 
 <body>
     <div class="container">
-        <h2>Barcode Scanner Project Aslam</h2>
+        <h2>Barcode Scanner</h2>
         <div id="scanner-container">
             <div class="loading">Scanner belum aktif</div>
         </div>
@@ -133,17 +143,34 @@
             <button id="start-btn" onclick="startScanner()">Mulai Scan</button>
             <button id="stop-btn" onclick="stopScanner()">Berhenti</button>
         </div>
+        <div class="debug-info" id="debug-console">
+            <strong>Debug Console:</strong><br>
+            <div id="debug-messages"></div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <script>
         let isScanning = false;
 
-        function startScanner() {
-            if (isScanning) return;
+        // Fungsi untuk menambahkan pesan debug
+        function debugLog(message) {
+            const debugDiv = document.getElementById('debug-messages');
+            debugDiv.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
+            debugDiv.scrollTop = debugDiv.scrollHeight; // Auto-scroll ke bawah
+            console.log(message);
+        }
 
-            document.querySelector('#scanner-container').classList.add('active');
-            document.querySelector('#scanner-container .loading').textContent = 'Memuat scanner...';
+        function startScanner() {
+            if (isScanning) {
+                debugLog("Scanner sudah berjalan");
+                return;
+            }
+
+            const scannerContainer = document.querySelector('#scanner-container');
+            scannerContainer.classList.add('active');
+            scannerContainer.querySelector('.loading').textContent = 'Memuat scanner...';
+            debugLog("Memulai inisialisasi scanner...");
 
             Quagga.init({
                 inputStream: {
@@ -151,9 +178,11 @@
                     constraints: {
                         width: 600,
                         height: 400,
-                        facingMode: "environment"
+                        facingMode: "environment",
+                        aspectRatio: { min: 1, max: 2 }
                     },
-                    target: document.querySelector('#scanner-container')
+                    target: scannerContainer,
+                    willReadFrequently: true
                 },
                 decoder: {
                     readers: [
@@ -165,31 +194,80 @@
                         "code_39_vin_reader",
                         "codabar_reader",
                         "i2of5_reader"
-                    ]
+                    ],
+                    debug: {
+                        drawBoundingBox: true,
+                        showFrequency: true,
+                        drawScanline: true,
+                        showPattern: true
+                    }
                 },
-                locate: true
+                locate: true,
+                numOfWorkers: 4,
+                frequency: 10,
+                debug: true
             }, function (err) {
                 if (err) {
-                    console.error(err);
-                    alert("Gagal memulai scanner. Pastikan Anda memberikan izin kamera.");
-                    document.querySelector('#scanner-container .loading').textContent = 'Error memuat scanner';
-                    document.querySelector('#scanner-container').classList.remove('active');
+                    debugLog("Error inisialisasi: " + (err.message || err));
+                    alert("Error: " + (err.message || "Gagal memulai scanner. Pastikan kamera tersedia dan diizinkan."));
+                    scannerContainer.querySelector('.loading').textContent = 'Error memuat scanner';
+                    scannerContainer.classList.remove('active');
                     return;
                 }
-                document.querySelector('#scanner-container .loading').style.display = 'none';
+
+                debugLog("Scanner berhasil diinisialisasi");
+                scannerContainer.querySelector('.loading').style.display = 'none';
                 Quagga.start();
                 isScanning = true;
+
+                // Tambahkan overlay untuk membantu fokus
+                const canvas = Quagga.canvas.dom.overlay;
+                canvas.style.border = '5px solid rgba(0, 255, 0, 0.5)';
+                canvas.style.boxSizing = 'border-box';
+
+                debugLog("Scanner mulai berjalan...");
+            });
+
+            Quagga.onProcessed(function (result) {
+                const drawingCtx = Quagga.canvas.ctx.overlay;
+                const drawingCanvas = Quagga.canvas.dom.overlay;
+
+                if (result) {
+                    if (result.boxes) {
+                        drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                        result.boxes.filter(function (box) {
+                            return box !== result.box;
+                        }).forEach(function (box) {
+                            Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
+                        });
+                    }
+
+                    if (result.box) {
+                        Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "blue", lineWidth: 2 });
+                    }
+
+                    if (result.codeResult && result.codeResult.code) {
+                        Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
+                    }
+                }
             });
 
             Quagga.onDetected(function (result) {
-                let code = result.codeResult.code;
-                document.getElementById("barcode-result").textContent = code;
-                console.log("Barcode terdeteksi:", code);
+                if (!result.codeResult) {
+                    debugLog("Ditemukan sesuatu tapi bukan barcode valid");
+                    return;
+                }
 
-                // Beri feedback visual
-                document.getElementById("result").style.backgroundColor = "#e8f5e9";
+                const code = result.codeResult.code;
+                debugLog(`Barcode terdeteksi: ${code} (format: ${result.codeResult.format})`);
+
+                document.getElementById("barcode-result").textContent = code;
+
+                // Feedback visual
+                const resultElement = document.getElementById("result");
+                resultElement.style.backgroundColor = "#e8f5e9";
                 setTimeout(() => {
-                    document.getElementById("result").style.backgroundColor = "#f0f8ff";
+                    resultElement.style.backgroundColor = "#f0f8ff";
                 }, 1000);
 
                 // Opsional: berhenti otomatis setelah scan
@@ -198,22 +276,32 @@
         }
 
         function stopScanner() {
-            if (!isScanning) return;
+            if (!isScanning) {
+                debugLog("Scanner tidak aktif");
+                return;
+            }
 
             Quagga.stop();
             isScanning = false;
-            document.querySelector('#scanner-container').classList.remove('active');
-            document.querySelector('#scanner-container .loading').style.display = 'block';
-            document.querySelector('#scanner-container .loading').textContent = 'Scanner dihentikan';
+            const scannerContainer = document.querySelector('#scanner-container');
+            scannerContainer.classList.remove('active');
+            const loadingElement = scannerContainer.querySelector('.loading');
+            loadingElement.style.display = 'block';
+            loadingElement.textContent = 'Scanner dihentikan';
             document.getElementById("barcode-result").textContent = "-";
+            debugLog("Scanner dihentikan");
         }
 
         // Handle ketika halaman ditutup
         window.addEventListener('beforeunload', function () {
             if (isScanning) {
                 Quagga.stop();
+                debugLog("Scanner dihentikan karena halaman ditutup");
             }
         });
+
+        // Debug: tampilkan versi Quagga
+        debugLog(`Menggunakan QuaggaJS v${Quagga.version}`);
     </script>
 </body>
 
