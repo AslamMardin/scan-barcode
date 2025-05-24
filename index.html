@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode Scanner - JavaScript</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        #scanner-container {
+            width: 100%;
+            max-width: 600px;
+            height: 400px;
+            margin: 20px auto;
+            border: 3px dashed #ccc;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            background-color: #f9f9f9;
+        }
+
+        #scanner-container.active {
+            border-color: #4CAF50;
+        }
+
+        #result {
+            text-align: center;
+            margin: 25px 0;
+            padding: 15px;
+            font-size: 22px;
+            font-weight: bold;
+            background-color: #f0f8ff;
+            border-radius: 5px;
+            min-height: 30px;
+        }
+
+        #barcode-result {
+            color: #e74c3c;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 25px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        #start-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #start-btn:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+        }
+
+        #stop-btn {
+            background-color: #f44336;
+            color: white;
+        }
+
+        #stop-btn:hover {
+            background-color: #d32f2f;
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #555;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            #scanner-container {
+                height: 300px;
+            }
+
+            button {
+                padding: 10px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Barcode Scanner Project Aslam</h2>
+        <div id="scanner-container">
+            <div class="loading">Scanner belum aktif</div>
+        </div>
+        <div id="result">Hasil: <span id="barcode-result">-</span></div>
+        <div class="button-group">
+            <button id="start-btn" onclick="startScanner()">Mulai Scan</button>
+            <button id="stop-btn" onclick="stopScanner()">Berhenti</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script>
+        let isScanning = false;
+
+        function startScanner() {
+            if (isScanning) return;
+
+            document.querySelector('#scanner-container').classList.add('active');
+            document.querySelector('#scanner-container .loading').textContent = 'Memuat scanner...';
+
+            Quagga.init({
+                inputStream: {
+                    type: "LiveStream",
+                    constraints: {
+                        width: 600,
+                        height: 400,
+                        facingMode: "environment"
+                    },
+                    target: document.querySelector('#scanner-container')
+                },
+                decoder: {
+                    readers: [
+                        "code_128_reader",
+                        "ean_reader",
+                        "ean_8_reader",
+                        "upc_reader",
+                        "code_39_reader",
+                        "code_39_vin_reader",
+                        "codabar_reader",
+                        "i2of5_reader"
+                    ]
+                },
+                locate: true
+            }, function (err) {
+                if (err) {
+                    console.error(err);
+                    alert("Gagal memulai scanner. Pastikan Anda memberikan izin kamera.");
+                    document.querySelector('#scanner-container .loading').textContent = 'Error memuat scanner';
+                    document.querySelector('#scanner-container').classList.remove('active');
+                    return;
+                }
+                document.querySelector('#scanner-container .loading').style.display = 'none';
+                Quagga.start();
+                isScanning = true;
+            });
+
+            Quagga.onDetected(function (result) {
+                let code = result.codeResult.code;
+                document.getElementById("barcode-result").textContent = code;
+                console.log("Barcode terdeteksi:", code);
+
+                // Beri feedback visual
+                document.getElementById("result").style.backgroundColor = "#e8f5e9";
+                setTimeout(() => {
+                    document.getElementById("result").style.backgroundColor = "#f0f8ff";
+                }, 1000);
+
+                // Opsional: berhenti otomatis setelah scan
+                // stopScanner();
+            });
+        }
+
+        function stopScanner() {
+            if (!isScanning) return;
+
+            Quagga.stop();
+            isScanning = false;
+            document.querySelector('#scanner-container').classList.remove('active');
+            document.querySelector('#scanner-container .loading').style.display = 'block';
+            document.querySelector('#scanner-container .loading').textContent = 'Scanner dihentikan';
+            document.getElementById("barcode-result").textContent = "-";
+        }
+
+        // Handle ketika halaman ditutup
+        window.addEventListener('beforeunload', function () {
+            if (isScanning) {
+                Quagga.stop();
+            }
+        });
+    </script>
+</body>
+
+</html>
