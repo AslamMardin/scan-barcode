@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Barcode & QR Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -135,191 +136,29 @@
 </head>
 
 <body>
-    <div class="container">
-        <h1>Barcode & QR Scanner</h1>
-        <p class="subtitle">Based on HTML5 and JavaScript</p>
+    <div id="qr-reader" style="width:500px"></div>
+    <div id="qr-reader-results"></div>
 
-        <div id="scanner-container">
-            <div class="status" id="status-message">Scanner belum diaktifkan</div>
-        </div>
-
-        <div id="result">
-            <strong>Hasil Scan:</strong><br>
-            <span id="barcode-result">-</span>
-            <div class="format-info" id="format-info"></div>
-        </div>
-
-        <div class="button-group">
-            <button id="start-btn" onclick="startScanner()">Mulai Scan</button>
-            <button id="stop-btn" onclick="stopScanner()">Berhenti</button>
-            <button id="switch-btn" onclick="switchCamera()">Ganti Kamera</button>
-        </div>
-
-        <div class="status">
-            Format yang didukung: QR Code, UPC-A, UPC-E, EAN-8, EAN-13, Code-39, Code-93, Code-128, ITF, Codabar
-        </div>
-    </div>
 
     <!-- Menggunakan library dari CDN seperti di artikel Minhaz Av -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.4/html5-qrcode.min.js"></script>
-    <script>
-        let html5QrcodeScanner;
-        let currentCameraId = null;
-        let isScanning = false;
 
-        function updateStatus(message) {
-            document.getElementById('status-message').textContent = message;
-        }
-
-        function startScanner() {
-            if (isScanning) {
-                updateStatus("Scanner sudah berjalan");
-                return;
-            }
-
-            updateStatus("Menyiapkan scanner...");
-
-            // Konfigurasi scanner
-            const config = {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-                rememberLastUsedCamera: true,
-                supportedScanTypes: [
-                    Html5QrcodeScanType.SCAN_TYPE_CAMERA,
-                    Html5QrcodeScanType.SCAN_TYPE_FILE
-                ],
-                formatsToSupport: [
-                    Html5QrcodeSupportedFormats.UPC_A,
-                    Html5QrcodeSupportedFormats.UPC_E,
-                    Html5QrcodeSupportedFormats.EAN_8,
-                    Html5QrcodeSupportedFormats.EAN_13,
-                    Html5QrcodeSupportedFormats.CODE_39,
-                    Html5QrcodeSupportedFormats.CODE_93,
-                    Html5QrcodeSupportedFormats.CODE_128,
-                    Html5QrcodeSupportedFormats.ITF,
-                    Html5QrcodeSupportedFormats.CODABAR,
-                    Html5QrcodeSupportedFormats.QR_CODE
-                ]
-            };
-
-            html5QrcodeScanner = new Html5Qrcode("scanner-container");
-
-            // Dapatkan daftar kamera yang tersedia
-            Html5Qrcode.getCameras()
-                .then(devices => {
-                    if (devices && devices.length) {
-                        // Jika ada kamera yang sebelumnya digunakan, gunakan itu
-                        const cameraId = currentCameraId || devices[0].id;
-                        return startCamera(cameraId, config);
-                    } else {
-                        throw "Tidak ditemukan perangkat kamera";
-                    }
-                })
-                .catch(err => {
-                    updateStatus(`Error: ${err}`);
-                    console.error(err);
-                });
-        }
-
-        function startCamera(cameraId, config) {
-            return html5QrcodeScanner.start(
-                cameraId,
-                config,
-                onScanSuccess,
-                onScanError
-            ).then(() => {
-                currentCameraId = cameraId;
-                isScanning = true;
-                updateStatus("Scanner aktif - Arahkan kamera ke barcode/QR");
-            }).catch(err => {
-                updateStatus(`Gagal memulai kamera: ${err}`);
-                console.error(err);
-            });
-        }
-
-        function onScanSuccess(decodedText, decodedResult) {
-            document.getElementById('barcode-result').textContent = decodedText;
-            document.getElementById('format-info').textContent = `Format: ${decodedResult.result.format.formatName}`;
-
-            // Feedback visual
-            const resultDiv = document.getElementById('result');
-            resultDiv.style.backgroundColor = '#e8f5e9';
-            setTimeout(() => {
-                resultDiv.style.backgroundColor = '#f0f8ff';
-            }, 500);
-
-            // Opsional: berhenti otomatis setelah scan
-            // stopScanner();
-        }
-
-        function onScanError(errorMessage) {
-            // Error handling bisa diabaikan karena akan terus mencoba scan
-            console.log(`Scan error: ${errorMessage}`);
-        }
-
-        function stopScanner() {
-            if (!isScanning) return;
-
-            html5QrcodeScanner.stop()
-                .then(() => {
-                    isScanning = false;
-                    updateStatus("Scanner dihentikan");
-                    document.getElementById('barcode-result').textContent = '-';
-                    document.getElementById('format-info').textContent = '';
-                })
-                .catch(err => {
-                    updateStatus(`Error menghentikan scanner: ${err}`);
-                    console.error(err);
-                });
-        }
-
-        function switchCamera() {
-            if (!isScanning) {
-                updateStatus("Aktifkan scanner terlebih dahulu");
-                return;
-            }
-
-            Html5Qrcode.getCameras()
-                .then(devices => {
-                    if (devices.length < 2) {
-                        updateStatus("Hanya ditemukan 1 kamera");
-                        return;
-                    }
-
-                    const currentIndex = devices.findIndex(device => device.id === currentCameraId);
-                    const nextIndex = (currentIndex + 1) % devices.length;
-                    const nextCameraId = devices[nextIndex].id;
-
-                    stopScanner();
-                    startScannerWithCamera(nextCameraId);
-                })
-                .catch(err => {
-                    updateStatus(`Error: ${err}`);
-                    console.error(err);
-                });
-        }
-
-        function startScannerWithCamera(cameraId) {
-            const config = {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-                formatsToSupport: [
-                    Html5QrcodeSupportedFormats.UPC_A,
-                    Html5QrcodeSupportedFormats.UPC_E,
-                    // ... format lainnya sama seperti di startScanner()
-                ]
-            };
-
-            startCamera(cameraId, config);
-        }
-
-        // Cleanup saat halaman ditutup
-        window.addEventListener('beforeunload', () => {
-            if (isScanning) {
-                stopScanner();
-            }
-        });
-    </script>
 </body>
+<script>
+    var resultContainer = document.getElementById('qr-reader-results');
+    var lastResult, countResults = 0;
+
+    function onScanSuccess(decodedText, decodedResult) {
+        if (decodedText !== lastResult) {
+            ++countResults;
+            lastResult = decodedText;
+            // Handle on success condition with the decoded message.
+            console.log(`Scan result ${decodedText}`, decodedResult);
+        }
+    }
+
+    var html5QrcodeScanner = new Html5QrcodeScanner(
+        "qr-reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render(onScanSuccess);
+</script>
 
 </html>
