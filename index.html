@@ -59,106 +59,72 @@
         #barcode-result {
             font-weight: bold;
             color: #e74c3c;
-            word-break: break-all;
+            word-break: break-word;
         }
 
-        .button-group {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        button {
-            padding: 12px 25px;
+        #qr-reader-results {
+            margin-top: 20px;
             font-size: 16px;
-            border: none;
+        }
+
+        .success-box {
+            padding: 15px;
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
             border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 600;
-        }
-
-        #start-btn {
-            background-color: #2ecc71;
-            color: white;
-        }
-
-        #start-btn:hover {
-            background-color: #27ae60;
-            transform: translateY(-2px);
-        }
-
-        #stop-btn {
-            background-color: #e74c3c;
-            color: white;
-        }
-
-        #stop-btn:hover {
-            background-color: #c0392b;
-            transform: translateY(-2px);
-        }
-
-        #switch-btn {
-            background-color: #3498db;
-            color: white;
-        }
-
-        #switch-btn:hover {
-            background-color: #2980b9;
-            transform: translateY(-2px);
-        }
-
-        .status {
-            text-align: center;
-            margin: 10px 0;
-            font-style: italic;
-            color: #7f8c8d;
-        }
-
-        .format-info {
-            margin-top: 15px;
-            font-size: 14px;
-            color: #7f8c8d;
-        }
-
-        @media (max-width: 600px) {
-            #scanner-container {
-                height: 300px;
-            }
-
-            button {
-                padding: 10px 20px;
-                font-size: 14px;
-            }
         }
     </style>
 </head>
 
 <body>
-    <div id="qr-reader" style="width:500px"></div>
-    <div id="qr-reader-results"></div>
+    <div class="container">
+        <h1>Barcode & QR Scanner</h1>
+        <p class="subtitle">Arahkan kamera ke QR Code atau Barcode</p>
 
+        <div id="qr-reader" style="width:100%; max-width:500px; margin:auto;"></div>
+        <div id="qr-reader-results"></div>
+    </div>
 
-    <!-- Menggunakan library dari CDN seperti di artikel Minhaz Av -->
+    <script>
+        const resultContainer = document.getElementById('qr-reader-results');
+        let lastResult = "";
+        let countResults = 0;
 
-</body>
-<script>
-    var resultContainer = document.getElementById('qr-reader-results');
-    var lastResult, countResults = 0;
+        function onScanSuccess(decodedText, decodedResult) {
+            if (decodedText !== lastResult) {
+                ++countResults;
+                lastResult = decodedText;
 
-    function onScanSuccess(decodedText, decodedResult) {
-        if (decodedText !== lastResult) {
-            ++countResults;
-            lastResult = decodedText;
-            // Handle on success condition with the decoded message.
-            console.log(`Scan result ${decodedText}`, decodedResult);
+                // Tampilkan hasil ke pengguna
+                resultContainer.innerHTML = `
+                    <div class="success-box">
+                        ✅ Barcode berhasil dibaca:<br><strong>${decodedText}</strong>
+                    </div>
+                `;
+
+                // Putar suara beep
+                const beepSound = new Audio('https://www.soundjay.com/buttons/sounds/beep-07.mp3');
+                beepSound.play();
+
+                // Getar jika di perangkat mobile
+                if (navigator.vibrate) {
+                    navigator.vibrate(200);
+                }
+
+                console.log(`Scan result ${decodedText}`, decodedResult);
+            }
         }
-    }
 
-    var html5QrcodeScanner = new Html5QrcodeScanner(
-        "qr-reader", { fps: 10, qrbox: 250 });
-    html5QrcodeScanner.render(onScanSuccess);
-</script>
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+            "qr-reader",
+            {
+                fps: 10,
+                qrbox: 250
+            }
+        );
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
 
 </html>
